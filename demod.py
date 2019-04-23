@@ -28,18 +28,8 @@ class Demodulator:
     def __init__(self, sampleRate, frameSize, spaceFrame, markFrame):
         self.sampleRate  = sampleRate
         self.frameSize   = frameSize
-        self.spaceFreq   = self.getFreq(spaceFrame)
-        self.markFreq    = self.getFreq(markFrame) 
         self.filterSpace = Goertzel(sampleRate, frameSize, SPACE_FREQ) 
         self.filterMark  = Goertzel(sampleRate, frameSize, MARK_FREQ) 
-
-    def getFreq(self, frame):
-        spec = np.fft.fft(frame)
-        freqs = np.fft.fftfreq(len(spec))
-        idx = np.argmax(spec[:len(spec)//2])
-        freq = freqs[idx] 
-        freq_in_hertz = abs(freq * 48000)
-        return freq_in_hertz
 
     def decode(self, frame):
         markMag  = abs(self.filterMark.filter(frame))
@@ -67,28 +57,20 @@ def decode(modFile):
     frameSize = sampleRate // BAUD_RATE
     
     # stats
-    print(f"Stats: frame size {frameSize}, sample rate {sampleRate}, number of samples {len(data)}")
-    #print(f"number of chars in message: {len(data)/1600}")
-    #print(f"data: {data}")
+    print(f"Stats: sample rate {sampleRate}, frame size {frameSize}")
 
     # create decoder object
     decoder = Demodulator(sampleRate, frameSize, data[:frameSize], data[frameSize:2*frameSize])
 
-    sampleNum = 0
     start = False
-    end = False
     cntBits = 0
     bits = []
     message = []
 
-    #print(f"Space Filter(2225) Mag: {np.real(filterSpace.filter(data[:frameSize]))}")
-    #print(f"Space Filter(2025) Mag: {np.real(filterMark.filter(data[:frameSize]))}")
-    #print(f"Mark Frame(2225) Mag: {np.real(filterMark.filter(data[9*frameSize:10*frameSize]))}")
-    #print(f"Mark Frame(2025) Mag: {np.real(filterSpace.filter(data[9*frameSize:10*frameSize]))}")
-
     print("\n\"", end=" ")
-    while(sampleNum < len(data)):
-        frame = data[sampleNum:sampleNum+frameSize]
+
+    # mimic real-time, read blocks from file like it's a buffer
+    for frame in sf.blocks(modFile, blocksize = frameSize):
 
         # wait for start bit
         if start == False and decoder.decode(frame) == SPACE:
@@ -109,20 +91,15 @@ def decode(modFile):
             cntBits = 0
             start = False
         
-        sampleNum += frameSize
     print(" \"\n")
 
     return message
 
 def main():
     modFile = sys.argv[1]
-    #modFile = 'test1.wav'
-    #modFile = 'test2.wav'
-    #modFile = 'carson.wav'
 
     # decodes message in modulation file
     message = decode(modFile)
-    #print(f"\nmessage is: {''.join(message)}\n")
 
     print("Demodularization complete!")
 
