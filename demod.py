@@ -1,9 +1,10 @@
 import soundfile as sf
 import numpy as np 
-import matplotlib.pyplot as plt 
 import sys
-from math import pi, sin
+from math import pi
 
+
+# CONSTANTS
 WAV_DATATYPE = 'float32'
 BAUD_RATE = 300
 MARK = 1
@@ -11,6 +12,8 @@ SPACE = 0
 MARK_FREQ = 2225 
 SPACE_FREQ = 2025 
 
+
+# Goertzel filter
 class Goertzel:
     
     def __init__(self, sampleRate, frameSize, frequency):
@@ -22,10 +25,11 @@ class Goertzel:
         assert len(samples) == len(self.coeff), "Window size does not match number of coeffecients"
         return self.norm * np.dot(samples, self.coeff)
         
-        
+       
+# Demodulator for answer signal from Bell 103 modem 
 class Demodulator:
 
-    def __init__(self, sampleRate, frameSize, spaceFrame, markFrame):
+    def __init__(self, sampleRate, frameSize):
         self.sampleRate  = sampleRate
         self.frameSize   = frameSize
         self.filterSpace = Goertzel(sampleRate, frameSize, SPACE_FREQ) 
@@ -39,9 +43,10 @@ class Demodulator:
         elif spaceMag > markMag:
             return SPACE
         
-        assert True, "Abiguous detection"
+        assert True, "Ambiguous detection"
 
 
+# flip the bits array and return ascii value as a char
 def convertBits(bits):
     # bits are in little endian order
     bits = np.flip(bits, axis=0)
@@ -49,24 +54,26 @@ def convertBits(bits):
     asciiVal = bits.dot(np.flip(2**np.arange(bits.size), axis=0))
     return chr(asciiVal) 
 
+
+# loads modulation file, reads and decodes ASCII message 1 frame at a time
 def decode(modFile):
+    # save message for return val
     message = []
 
-    # load wav data
+    # load wav data and stats
     data, sampleRate = sf.read(modFile, dtype=WAV_DATATYPE)
     frameSize = sampleRate // BAUD_RATE
-    
-    # stats
-    print(f"Stats: sample rate {sampleRate}, frame size {frameSize}")
+    print(f"\nStats: sample rate {sampleRate}, frame size {frameSize}")
 
     # create decoder object
-    decoder = Demodulator(sampleRate, frameSize, data[:frameSize], data[frameSize:2*frameSize])
+    decoder = Demodulator(sampleRate, frameSize)
 
+    # init loop vars
     start = False
     cntBits = 0
     bits = []
-    message = []
 
+    # start of message
     print("\n\"", end=" ")
 
     # mimic real-time, read blocks from file like it's a buffer
@@ -90,10 +97,12 @@ def decode(modFile):
             bits = []
             cntBits = 0
             start = False
-        
+       
+    # end of message 
     print(" \"\n")
 
     return message
+
 
 def main():
     modFile = sys.argv[1]
@@ -101,7 +110,7 @@ def main():
     # decodes message in modulation file
     message = decode(modFile)
 
-    print("Demodularization complete!")
+    print("Demodularization complete!\n")
 
 
 if __name__ == "__main__":
